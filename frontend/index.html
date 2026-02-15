@@ -49,6 +49,30 @@
         .hidden {
             display: none;
         }
+
+        @keyframes scan {
+            0% {
+                top: 0%;
+                opacity: 0;
+            }
+
+            10% {
+                opacity: 1;
+            }
+
+            90% {
+                opacity: 1;
+            }
+
+            100% {
+                top: 100%;
+                opacity: 0;
+            }
+        }
+
+        .animate-scan {
+            animation: scan 1.5s linear infinite;
+        }
     </style>
 </head>
 
@@ -79,10 +103,22 @@
     <!-- Main Content -->
     <div class="relative w-full max-w-md h-full flex flex-col items-center justify-center p-6 pb-24">
 
-        <div class="relative w-80 h-80 rounded-3xl overflow-hidden border-4 border-slate-700 shadow-2xl">
+        <div class="relative w-80 h-80 rounded-3xl overflow-hidden border-4 border-slate-700 shadow-2xl group">
             <video id="v" autoplay playsinline class="w-full h-full object-cover"></video>
+
+            <!-- AI Scanning Line Effect -->
+            <div id="scan-line"
+                class="hidden absolute top-0 left-0 w-full h-1 bg-green-400 shadow-[0_0_15px_rgba(74,222,128,0.8)] z-20">
+            </div>
+
             <div id="resultBox" class="hidden absolute inset-0 bg-black"></div>
             <div id="shutter" class="absolute inset-0 bg-white opacity-0 pointer-events-none"></div>
+
+            <!-- Camera Toggle Button -->
+            <button onclick="toggleCamera()"
+                class="absolute top-4 right-4 bg-black/50 p-2 rounded-full text-white hover:bg-black/70 transition-all z-30">
+                🔄
+            </button>
         </div>
 
         <div id="info" class="hidden w-80 mt-4 bg-slate-800 p-4 rounded-2xl animate-slide-up">

@@ -136,13 +136,32 @@ function showTeaser() {
 
 
 
-// 카메라 켜기
-navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-    .then(s => v.srcObject = s)
-    .catch(err => {
+// [Global Upgrade] Camera Toggle Logic
+let currentFacingMode = 'environment';
+let stream = null;
+
+async function startCamera() {
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+    }
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: currentFacingMode }
+        });
+        document.getElementById('v').srcObject = stream;
+    } catch (err) {
         alert(t[lang].camera_error);
         console.error("Camera Error:", err);
-    });
+    }
+}
+
+function toggleCamera() {
+    currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+    startCamera();
+}
+
+// 초기 카메라 실행
+startCamera();
 
 // 5초마다 마케팅 문구 변경
 setInterval(() => {
@@ -153,20 +172,45 @@ setInterval(() => {
     }, 500);
 }, 5000);
 
+// [Global Upgrade] TTS (Text-to-Speech)
+function speak(text) {
+    if (!window.speechSynthesis) return;
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = lang === 'ko' ? 'ko-KR' : 'en-US';
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    window.speechSynthesis.speak(utterance);
+}
+
 async function capture() {
     // 진동 및 셔터 효과
     if (navigator.vibrate) navigator.vibrate(50);
     shutter.classList.add('animate-shutter');
     setTimeout(() => shutter.classList.remove('animate-shutter'), 200);
 
+    // [Global Upgrade] AI Scanning Visual Effect
+    const scanLine = document.getElementById('scan-line');
+    scanLine.classList.remove('hidden');
+    scanLine.classList.add('animate-scan');
+
     const btn = document.querySelector('button');
     btn.innerText = t[lang].analyzing;
     btn.disabled = true;
 
+    // 찰칵 소리 (Optional, 브라우저 정책상 자동재생 제한될 수 있음)
+    // const audio = new Audio('shutter.mp3'); audio.play().catch(e=>{});
+
     const c = document.createElement('canvas');
     c.width = v.videoWidth; c.height = v.videoHeight;
     c.getContext('2d').drawImage(v, 0, 0);
-    c.toBlob(upload, 'image/jpeg', 0.8);
+    c.toBlob((blob) => {
+        // 스캔 효과가 보이도록 1.5초 지연 후 업로드
+        setTimeout(() => {
+            scanLine.classList.add('hidden');
+            scanLine.classList.remove('animate-scan');
+            upload(blob);
+        }, 1500);
+    }, 'image/jpeg', 0.8);
 }
 
 async function upload(blob) {
@@ -237,6 +281,13 @@ async function upload(blob) {
         document.getElementById('resultBox').innerHTML = `<img src="${d.result_image}" class="w-full h-full object-cover">`;
         document.getElementById('resultBox').classList.remove('hidden');
         v.classList.add('hidden');
+
+        // [Global Upgrade] Voice Feedback
+        const spokenText = lang === 'ko'
+            ? `${d.food_name}입니다. ${d.calories}칼로리네요.`
+            : `${d.food_name}, ${d.calories} calories.`;
+        speak(spokenText);
+
         const btn = document.querySelector('button');
         btn.innerText = t[lang].retry;
         btn.disabled = false;
