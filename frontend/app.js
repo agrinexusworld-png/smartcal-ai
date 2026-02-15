@@ -6,7 +6,9 @@ const API_URL = (window.location.hostname === 'localhost' || window.location.hos
     : 'https://smartcal-ai-1.onrender.com'; // [Global Upgrade] Updated Production URL
 
 // [Global Upgrade] Internationalization (i18n)
-const lang = navigator.language.startsWith('ko') ? 'ko' : 'en';
+// 저장된 언어 설정이 있으면 사용, 없으면 브라우저 설정 사용
+const savedLang = localStorage.getItem('smartcal_lang');
+const lang = savedLang ? savedLang : (navigator.language.startsWith('ko') ? 'ko' : 'en');
 const t = {
     ko: {
         analyzing: "🔍 분석 중...",
@@ -17,6 +19,8 @@ const t = {
         teaser_desc: "상세 영양 성분을 확인하려면<br>프리미엄 구독이 필요합니다.",
         teaser_sub: "단 한 번 결제로 평생 무제한 이용",
         premium_locked: "🔒 프리미엄 전용",
+        navbar_app: "앱 설치",
+        navbar_pro: "Pro Plan",
         cta: [
             "☕ 하루 130원으로 식단 고민 끝! 평생 식단 관리 시작해요.",
             "🔥 월 3,900원으로 무제한 AI 칼로리 분석!",
@@ -36,6 +40,8 @@ const t = {
         teaser_desc: "Unlock full nutrition details<br>with Premium.",
         teaser_sub: "One-time payment for lifetime access",
         premium_locked: "🔒 Premium Only",
+        navbar_app: "App",
+        navbar_pro: "Pro Plan",
         cta: [
             "☕Track calories for less than a coffee!",
             "🔥 Unlimited AI analysis for a lifetime.",
@@ -48,7 +54,51 @@ const t = {
     }
 };
 
-const ctaMessages = t[lang].cta;
+let ctaMessages = t[lang].cta;
+
+// [UI] 언어 변경 및 네비게이션 로직
+document.getElementById('lang-btn').onclick = () => {
+    const newLang = lang === 'ko' ? 'en' : 'ko';
+    localStorage.setItem('smartcal_lang', newLang);
+    location.reload();
+    // 다국어 즉시 적용을 위해 리로드가 가장 확실함 (간단한 구현)
+    // 실제로는 텍스트만 교체하는 것이 UX에 좋지만, 현재 구조상 리로드가 빠름
+};
+
+// 언어 초기화 (저장된 값 우선)
+if (localStorage.getItem('smartcal_lang')) {
+    if (localStorage.getItem('smartcal_lang') !== lang) {
+        // navigator.language와 저장된 값이 다르면, 저장된 값으로 강제 리로드 필요할 수 있음
+        // 하지만 여기선 const lang 초기화 시점에 처리하는게 좋음. 
+        // 이미 const lang 선언이 위에서 되었으므로, 복잡도를 낮추기 위해 UI 텍스트 업데이트만 수행
+    }
+}
+
+// UI 텍스트 업데이트 함수
+function updateUIText() {
+    document.getElementById('lang-text').innerText = lang.toUpperCase();
+    document.getElementById('nav-app').innerText = t[lang].navbar_app;
+    // 버튼 등 다른 요소들도 업데이트 필요하면 추가
+}
+updateUIText();
+
+function showTeaser() {
+    // Pro Plan 버튼 클릭 시: 강제로 티저 UI 보여주기 (구매 유도)
+    // 이미 프리미엄이면 "이미 활성화됨" 알림
+    alert(lang === 'ko' ? "✨ 프리미엄 멤버십 페이지로 이동합니다." : "✨ Redirecting to Premium Membership.");
+    // 실제로는 티저 모달을 띄우거나 결제 로직 호출
+    // 여기서는 requestPayment()와 유사한 효과를 내거나, 티저 함수 재사용
+    // 편의상 티저 처럼 동작하는 업로드 실패(expired) 상황을 시뮬레이션 할 수도 있음.
+
+    // 단순 안내
+    const resultBox = document.getElementById('resultBox');
+    if (resultBox.classList.contains('hidden')) {
+        // 결과 화면이 없을 때는 그냥 알림만
+    } else {
+        // 결과 화면이 있을 때는 티저 UI 덮어씌우기 (데모용)
+    }
+}
+
 
 
 // 카메라 켜기
