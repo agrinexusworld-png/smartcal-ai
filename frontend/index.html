@@ -11,6 +11,12 @@
     <!-- [IMPORTANT] Replace 'sb' with your LIVE PayPal Client ID below for real payments -->
     <!-- Get ID from: https://developer.paypal.com/dashboard/applications/live -->
     <script src="https://www.paypal.com/sdk/js?client-id=sb&currency=USD"></script>
+    <link rel="manifest" href="manifest.json">
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js');
+        }
+    </script>
     <style>
         @keyframes shutter {
             0% {
@@ -77,7 +83,7 @@
 </head>
 
 <body
-    class="bg-gray-900 text-white flex flex-col items-center justify-center min-h-screen relative overflow-hidden font-sans">
+    class="bg-gray-900 text-white flex flex-col items-center justify-center min-h-screen relative overflow-hidden font-sans pb-20">
 
     <!-- Navbar -->
     <nav
@@ -89,6 +95,7 @@
             </button>
         </div>
         <div class="flex items-center gap-3">
+            <!-- [Mobile] PWA Install Button -->
             <button id="install-btn"
                 class="hidden flex items-center gap-2 border border-gray-600 bg-gray-800/50 hover:bg-gray-700 px-3 py-1.5 rounded-full text-xs transition-all">
                 📥 <span id="nav-app">App</span>
@@ -101,7 +108,26 @@
     </nav>
 
     <!-- Main Content -->
-    <div class="relative w-full max-w-md h-full flex flex-col items-center justify-center p-6 pb-24">
+    <div class="relative w-full max-w-md h-full flex flex-col items-center justify-center p-6">
+
+        <!-- [Mobile] Daily Goal Progress -->
+        <div
+            class="absolute top-20 left-6 z-40 bg-black/60 backdrop-blur-md rounded-2xl p-3 flex items-center gap-3 border border-gray-700">
+            <div class="relative w-12 h-12 flex items-center justify-center">
+                <svg class="w-full h-full transform -rotate-90">
+                    <circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="4" fill="transparent"
+                        class="text-gray-700" />
+                    <circle id="goal-ring" cx="24" cy="24" r="20" stroke="currentColor" stroke-width="4"
+                        fill="transparent" class="text-green-500 transition-all duration-1000" stroke-dasharray="125"
+                        stroke-dashoffset="125" />
+                </svg>
+                <span class="absolute text-[10px] font-bold" id="goal-percent">0%</span>
+            </div>
+            <div>
+                <p class="text-[10px] text-gray-400">Daily Goal</p>
+                <p class="text-sm font-bold"><span id="total-cal">0</span> / 2000</p>
+            </div>
+        </div>
 
         <div class="relative w-80 h-80 rounded-3xl overflow-hidden border-4 border-slate-700 shadow-2xl group">
             <video id="v" autoplay playsinline class="w-full h-full object-cover"></video>
@@ -131,15 +157,38 @@
                 <div class="bg-slate-700 p-2 rounded-lg">단<br><span id="prot" class="font-bold">-</span></div>
                 <div class="bg-slate-700 p-2 rounded-lg">지<br><span id="fat" class="font-bold">-</span></div>
             </div>
+            <!-- [Mobile] Share Button -->
+            <button onclick="shareResult()"
+                class="w-full mt-3 bg-blue-600 hover:bg-blue-700 py-2 rounded-lg text-sm font-bold transition-colors">
+                📤 Share Result
+            </button>
         </div>
 
-        <div class="flex gap-4 mt-8">
+        <div class="flex gap-4 mt-8 w-full justify-center px-6">
+            <!-- [Mobile] History Button -->
+            <button onclick="toggleHistory()"
+                class="bg-gray-700 hover:bg-gray-600 p-4 rounded-2xl shadow-lg transition-all">
+                📅
+            </button>
+
             <button onclick="capture()"
-                class="bg-green-500 hover:bg-green-600 px-8 py-4 rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-all">
+                class="flex-1 bg-green-500 hover:bg-green-600 px-8 py-4 rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-all">
                 📸 촬영분석
             </button>
         </div>
 
+    </div>
+
+    <!-- [Mobile] Diet History Modal -->
+    <div id="history-modal" class="hidden fixed inset-0 bg-black/95 z-50 p-6 overflow-y-auto animate-slide-up">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold">📅 Diet History</h2>
+            <button onclick="toggleHistory()" class="text-gray-400 hover:text-white text-xl">✕</button>
+        </div>
+        <div id="history-list" class="space-y-4">
+            <!-- Items will be injected here -->
+            <p class="text-gray-500 text-center py-10">No records yet.</p>
+        </div>
     </div>
     <!-- Footer -->
     <footer

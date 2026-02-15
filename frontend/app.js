@@ -231,6 +231,136 @@ async function capture() {
     }, 'image/jpeg', 0.8);
 }
 
+// [Mobile Experience Pack] Daily Goal & History Logic
+const DAILY_GOAL = 2000;
+let todayTotal = 0;
+
+// 날짜별 키 생성 (예: history_2023-10-27)
+function getTodayKey() {
+    return 'history_' + new Date().toISOString().split('T')[0];
+}
+
+// 초기 로딩 시 데이터 불러오기
+function loadHistory() {
+    const key = getTodayKey();
+    const history = JSON.parse(localStorage.getItem(key) || '[]');
+
+    todayTotal = history.reduce((sum, item) => sum + item.calories, 0);
+    updateGoalUI();
+    renderHistoryList(history);
+}
+
+// UI 업데이트 (원형 그래프)
+function updateGoalUI() {
+    const percent = Math.min(100, Math.round((todayTotal / DAILY_GOAL) * 100));
+    document.getElementById('goal-percent').innerText = percent + "%";
+    document.getElementById('total-cal').innerText = todayTotal;
+
+    const ring = document.getElementById('goal-ring');
+    const offset = 125 - (125 * percent / 100);
+    ring.style.strokeDashoffset = offset;
+
+    // 색상 변경 (초과 시 빨강)
+    if (todayTotal > DAILY_GOAL) {
+        ring.classList.remove('text-green-500');
+        ring.classList.add('text-red-500');
+    }
+}
+
+// 기록 저장
+function saveToHistory(data) {
+    const key = getTodayKey();
+    const history = JSON.parse(localStorage.getItem(key) || '[]');
+
+    const newItem = {
+        id: Date.now(),
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        name: data.food_name,
+        calories: data.calories,
+        image: data.result_image
+    };
+
+    history.unshift(newItem); // 최신순
+    localStorage.setItem(key, JSON.stringify(history));
+
+    todayTotal += data.calories;
+    updateGoalUI();
+    renderHistoryList(history);
+}
+
+// 히스토리 모달 렌더링
+function renderHistoryList(history) {
+    const list = document.getElementById('history-list');
+    if (history.length === 0) {
+        list.innerHTML = '<p class="text-gray-500 text-center py-10">No records today.</p>';
+        return;
+    }
+
+    list.innerHTML = history.map(item => `
+        <div class="bg-gray-800 p-3 rounded-xl flex items-center gap-3">
+            <img src="${item.image}" class="w-16 h-16 rounded-lg object-cover bg-gray-700">
+            <div class="flex-1">
+                <div class="flex justify-between items-center mb-1">
+                    <h4 class="font-bold text-white">${item.name}</h4>
+                    <span class="text-xs text-gray-400">${item.time}</span>
+                </div>
+                <p class="text-green-400 font-bold">${item.calories} kcal</p>
+            </div>
+            <button onclick="deleteItem(${item.id})" class="text-gray-500 hover:text-red-400 px-2">✕</button>
+        </div>
+    `).join('');
+}
+
+// 기록 삭제
+window.deleteItem = function (id) {
+    if (!confirm('Delete this record?')) return;
+
+    const key = getTodayKey();
+    let history = JSON.parse(localStorage.getItem(key) || '[]');
+
+    const target = history.find(item => item.id === id);
+    if (target) {
+        todayTotal -= target.calories;
+        history = history.filter(item => item.id !== id);
+        localStorage.setItem(key, JSON.stringify(history));
+        updateGoalUI();
+        renderHistoryList(history);
+    }
+};
+
+// 모달 토글
+window.toggleHistory = function () {
+    const modal = document.getElementById('history-modal');
+    if (modal.classList.contains('hidden')) {
+        modal.classList.remove('hidden');
+        loadHistory(); // 열 때 최신화
+    } else {
+        modal.classList.add('hidden');
+    }
+};
+
+// [Mobile Experience Pack] Share Functionality
+window.shareResult = async function () {
+    const name = document.getElementById('name').innerText;
+    const kcal = document.getElementById('kcal').innerText;
+
+    if (navigator.share) {
+        try {
+            await navigator.share({
+                title: 'SmartCal AI Analysis',
+                text: `🍽️ I just ate ${name} (${kcal})! Analyzed by SmartCal AI.`,
+                url: window.location.href
+            });
+        } catch (err) {
+            console.log('Share canceled');
+        }
+    } else {
+        alert("Sharing is not supported on this browser/device.");
+    }
+};
+
+loadHistory(); // 앱 시작 시 로드
+
 async function upload(blob) {
     const fd = new FormData(); fd.append('file', blob);
     try {
@@ -302,6 +432,9 @@ async function upload(blob) {
 
             return;
         }
+
+        // [New] 결과 저장 (History)
+        saveToHistory(d);
 
         document.getElementById('name').innerText = d.food_name;
         document.getElementById('kcal').innerText = d.calories + " kcal";
