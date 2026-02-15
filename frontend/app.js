@@ -3,7 +3,41 @@ localStorage.setItem('sc_id', userId);
 
 const API_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
     ? 'http://127.0.0.1:8000'
-    : 'https://smartcal-ai-1.onrender.com'; // [Global Upgrade] Updated Production URL
+    : 'https://smartcal-ai-1.onrender.com';
+
+// [DEBUG] Mobile Console Logger
+function toggleDebug() {
+    const d = document.getElementById('debug-log');
+    d.classList.toggle('hidden');
+}
+
+const originalLog = console.log;
+const originalError = console.error;
+const debugLog = document.getElementById('debug-log');
+
+function logToScreen(msg, type = 'INFO') {
+    if (!debugLog) return;
+    const p = document.createElement('p');
+    p.innerText = `[${type}] ${msg}`;
+    if (type === 'ERROR') p.style.color = 'red';
+    debugLog.prepend(p);
+}
+
+console.log = (...args) => {
+    originalLog(...args);
+    logToScreen(args.join(' '));
+};
+
+console.error = (...args) => {
+    originalError(...args);
+    logToScreen(args.join(' '), 'ERROR');
+};
+
+// Global Error Handler
+window.onerror = function (msg, url, lineNo, columnNo, error) {
+    logToScreen(`${msg} (${lineNo}:${columnNo})`, 'CRITICAL');
+    return false;
+};
 
 // [Global Upgrade] Internationalization (i18n)
 // 저장된 언어 설정이 있으면 사용, 없으면 브라우저 설정 사용

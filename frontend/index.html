@@ -201,7 +201,13 @@
         </div>
         <p class="mb-1">© 2026 SmartCal AI. All Rights Reserved.</p>
         <p>Protected by International Intellectual Property Laws.</p>
+        <button onclick="toggleDebug()" class="opacity-30 text-[8px] mt-2">v1.1.0 DEBUG</button>
     </footer>
+
+    <!-- Debug Log Overlay -->
+    <div id="debug-log"
+        class="hidden fixed bottom-0 left-0 w-full h-1/3 bg-black/90 text-green-400 text-xs font-mono p-4 overflow-y-auto z-50 pointer-events-none opacity-80">
+    </div>
 
     <script src="app.js"></script>
 </body>
