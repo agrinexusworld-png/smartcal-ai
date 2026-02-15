@@ -137,10 +137,12 @@ function showTeaser() {
 
 
 // [Global Upgrade] Camera Toggle Logic
+// [Global Upgrade] Camera Toggle Logic
 let currentFacingMode = 'environment';
 let stream = null;
 
 async function startCamera() {
+    const v = document.getElementById('v');
     if (stream) {
         stream.getTracks().forEach(track => track.stop());
     }
@@ -148,7 +150,7 @@ async function startCamera() {
         stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: currentFacingMode }
         });
-        document.getElementById('v').srcObject = stream;
+        v.srcObject = stream;
     } catch (err) {
         alert(t[lang].camera_error);
         console.error("Camera Error:", err);
@@ -165,6 +167,8 @@ startCamera();
 
 // 5초마다 마케팅 문구 변경
 setInterval(() => {
+    const ctaText = document.getElementById('ctaText');
+    if (!ctaText) return;
     ctaText.style.opacity = "0";
     setTimeout(() => {
         ctaText.innerText = ctaMessages[Math.floor(Math.random() * ctaMessages.length)];
@@ -183,22 +187,34 @@ function speak(text) {
 }
 
 async function capture() {
+    const v = document.getElementById('v');
+    const shutter = document.getElementById('shutter');
+    const scanLine = document.getElementById('scan-line');
+    const btn = document.querySelector('button');
+
+    // 카메라 준비 상태 확인
+    if (!v || !v.videoWidth) {
+        alert(t[lang].camera_error);
+        return;
+    }
+
     // 진동 및 셔터 효과
     if (navigator.vibrate) navigator.vibrate(50);
-    shutter.classList.add('animate-shutter');
-    setTimeout(() => shutter.classList.remove('animate-shutter'), 200);
+    if (shutter) {
+        shutter.classList.add('animate-shutter');
+        setTimeout(() => shutter.classList.remove('animate-shutter'), 200);
+    }
 
     // [Global Upgrade] AI Scanning Visual Effect
-    const scanLine = document.getElementById('scan-line');
-    scanLine.classList.remove('hidden');
-    scanLine.classList.add('animate-scan');
+    if (scanLine) {
+        scanLine.classList.remove('hidden');
+        scanLine.classList.add('animate-scan');
+    }
 
-    const btn = document.querySelector('button');
-    btn.innerText = t[lang].analyzing;
-    btn.disabled = true;
-
-    // 찰칵 소리 (Optional, 브라우저 정책상 자동재생 제한될 수 있음)
-    // const audio = new Audio('shutter.mp3'); audio.play().catch(e=>{});
+    if (btn) {
+        btn.innerText = t[lang].analyzing;
+        btn.disabled = true;
+    }
 
     const c = document.createElement('canvas');
     c.width = v.videoWidth; c.height = v.videoHeight;
@@ -206,8 +222,10 @@ async function capture() {
     c.toBlob((blob) => {
         // 스캔 효과가 보이도록 1.5초 지연 후 업로드
         setTimeout(() => {
-            scanLine.classList.add('hidden');
-            scanLine.classList.remove('animate-scan');
+            if (scanLine) {
+                scanLine.classList.add('hidden');
+                scanLine.classList.remove('animate-scan');
+            }
             upload(blob);
         }, 1500);
     }, 'image/jpeg', 0.8);
@@ -216,9 +234,22 @@ async function capture() {
 async function upload(blob) {
     const fd = new FormData(); fd.append('file', blob);
     try {
+        // [UX] 서버가 깨어나는데 시간이 걸릴 수 있음을 안내
+        const timeoutId = setTimeout(() => {
+            const btn = document.querySelector('button');
+            if (btn && btn.disabled) {
+                btn.innerText = lang === 'ko' ? "서버 깨우는 중..." : "Waking up server...";
+            }
+        }, 3000);
+
         const res = await fetch(`${API_URL}/analyze`, {
             method: 'POST', body: fd, headers: { 'user-id': userId }
         });
+
+        clearTimeout(timeoutId);
+
+        if (!res.ok) throw new Error("Server Responded with Error");
+
         const d = await res.json();
 
         if (d.error === "expired") {

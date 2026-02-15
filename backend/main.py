@@ -78,42 +78,101 @@ async def fetch_mfds(food_en: str):
 async def pay_success(user_id: str):
     conn = sqlite3.connect("smartcal_pro.db")
     c = conn.cursor()
-    unlimited = (datetime.now() + timedelta(days=36500)).isoformat()
-    c.execute("INSERT OR REPLACE INTO users VALUES (?, ?)", (user_id, unlimited))
+    # The original pay_success logic was for 'first_access' and 'unlimited' time.
+    # The new analyze logic expects 'plan' and 'count'.
+    # I will adapt pay_success to set 'plan' to 'premium' and 'count' to 0 (or a very high number).
+    # For simplicity, setting plan to 'premium' and count to 0.
+    c.execute("INSERT OR REPLACE INTO users (id, plan, count) VALUES (?, ?, ?)", (user_id, "premium", 0))
     conn.commit(); conn.close()
     return {"status": "ok"}
 
 @app.post("/analyze")
-async def analyze(file: UploadFile = File(...), user_id: Optional[str] = Header(None)):
-    conn = sqlite3.connect("smartcal_pro.db")
-    c = conn.cursor()
-    c.execute("SELECT first_access FROM users WHERE user_id=?", (user_id,))
-    row = c.fetchone()
-    now = datetime.now()
-    if not row:
-        c.execute("INSERT INTO users VALUES (?, ?)", (user_id, now.isoformat())); conn.commit()
-    elif now > datetime.fromisoformat(row[0]) + timedelta(hours=24):
-        conn.close(); return {"error": "expired"}
+async def analyze(file: UploadFile = File(...), user_id: str = Header(None)): # Changed user_id to str as per edit
+    try:
+        # [이미지 처리 안전장치]
+        contents = await file.read()
+        if not contents:
+            return JSONResponse(content={"error": "Empty file"}, status_code=400)
 
-    contents = await file.read()
-    nparr = np.frombuffer(contents, np.uint8)
-    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    results = model(img)
-    
-    res_data = {"food_name": "분석중", "calories": 0, "carbs": 0, "protein": 0, "fat": 0}
-    for r in results:
-        for box in r.boxes:
-            label = model.names[int(box.cls[0])]
-            data = await fetch_mfds(label)
-            res_data.update({"food_name": data["name"], "calories": data["kcal"], "carbs": data["carbs"], "protein": data["protein"], "fat": data["fat"]})
-            b = box.xyxy[0].cpu().numpy().astype(int)
-            cv2.rectangle(img, (b[0], b[1]), (b[2], b[3]), (0, 255, 0), 4)
-            break
-    
-    conn.close()
-    _, enc = cv2.imencode('.jpg', img)
-    res_data["result_image"] = f"data:image/jpeg;base64,{base64.b64encode(enc).decode('utf-8')}"
-    return res_data
+        nparr = np.frombuffer(contents, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            return JSONResponse(content={"error": "Invalid image format"}, status_code=400)
+
+        # YOLO 추론
+        results = model(img)
+        
+        # [정확도 개선] 가장 높은 신뢰도의 객체 1개만 선택
+        best_box = None
+        max_conf = 0.0
+
+        for r in results:
+            boxes = r.boxes
+            for box in boxes:
+                conf = float(box.conf[0])
+                if conf > max_conf:
+                    max_conf = conf
+                    best_box = box
+        
+        food_name = "bowl" # 기본값
+        if best_box:
+            cls_id = int(best_box.cls[0])
+            food_name = model.names[cls_id]
+        
+        # 식약처 API 연동
+        nutri = await fetch_mfds(food_name)
+
+        # 사용자 데이터베이스 업데이트 (무료/유료 체크)
+        # Using 'smartcal_pro.db' for consistency with the rest of the file.
+        conn = sqlite3.connect('smartcal_pro.db')
+        c = conn.cursor()
+        c.execute("SELECT plan, count FROM users WHERE id=?", (user_id,))
+        row = c.fetchone()
+        
+        if not row:
+            c.execute("INSERT INTO users (id, plan, count) VALUES (?, ?, ?)", (user_id, 'free', 0))
+            plan, count = 'free', 0
+        else:
+            plan, count = row
+
+        # [수익화 모델] 무료 유저는 3회까지만 상세 정보 제공 -> 4회차부터 'expired' 리턴
+        # 데모 목적상 1회만 제공하거나, 확률적으로 잠글 수도 있음.
+        # 여기서는 그대로 유지
+        if plan == 'free' and count >= 3:
+             # 이미지 저장 (블러 처리용 원본)
+            _, img_encoded = cv2.imencode('.jpg', img)
+            img_base64 = base64.b64encode(img_encoded).decode('utf-8')
+            return {"error": "expired", "result_image": f"data:image/jpeg;base64,{img_base64}"}
+
+        # 카운트 증가 (only for free users, premium users don't have count limits)
+        if plan == 'free':
+            c.execute("UPDATE users SET count = count + 1 WHERE id=?", (user_id,))
+        conn.commit()
+        conn.close()
+
+        # 결과 이미지 (바운딩 박스 그리기)
+        # Ensure results is not empty before plotting
+        if results and len(results) > 0:
+            res_plotted = results[0].plot()
+        else:
+            res_plotted = img # If no detection, return original image
+
+        _, img_encoded = cv2.imencode('.jpg', res_plotted)
+        img_base64 = base64.b64encode(img_encoded).decode('utf-8')
+
+        return {
+            "food_name": nutri["name"],
+            "calories": nutri["kcal"],
+            "carbs": nutri["carbs"],
+            "protein": nutri["protein"],
+            "fat": nutri["fat"],
+            "result_image": f"data:image/jpeg;base64,{img_base64}"
+        }
+
+    except Exception as e:
+        print(f"Error processing image: {e}")
+        return JSONResponse(content={"error": "Server processing failed"}, status_code=500)
 
 if __name__ == "__main__":
     # Render 환경의 포트 자동 바인딩 설정
