@@ -1,0 +1,8 @@
+{
+    "rewrites": [
+        {
+            "source": "/api/(.*)",
+            "destination": "https://smartcal-ai.onrender.com/$1"
+        }
+    ]
+}
