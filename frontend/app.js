@@ -82,21 +82,56 @@ function updateUIText() {
 }
 updateUIText();
 
+// [Global Upgrade] Pro Plan 결제 유도
 function showTeaser() {
-    // Pro Plan 버튼 클릭 시: 강제로 티저 UI 보여주기 (구매 유도)
-    // 이미 프리미엄이면 "이미 활성화됨" 알림
-    alert(lang === 'ko' ? "✨ 프리미엄 멤버십 페이지로 이동합니다." : "✨ Redirecting to Premium Membership.");
-    // 실제로는 티저 모달을 띄우거나 결제 로직 호출
-    // 여기서는 requestPayment()와 유사한 효과를 내거나, 티저 함수 재사용
-    // 편의상 티저 처럼 동작하는 업로드 실패(expired) 상황을 시뮬레이션 할 수도 있음.
-
-    // 단순 안내
-    const resultBox = document.getElementById('resultBox');
-    if (resultBox.classList.contains('hidden')) {
-        // 결과 화면이 없을 때는 그냥 알림만
-    } else {
-        // 결과 화면이 있을 때는 티저 UI 덮어씌우기 (데모용)
+    // 이미 결과 화면에 티저가 떠 있다면 중복 실행 방지
+    if (document.getElementById('paypal-button-container')) {
+        alert(lang === 'ko' ? "👇 아래의 PayPal 버튼을 눌러 결제를 진행해주세요." : "👇 Please click the PayPal button below.");
+        return;
     }
+
+    // 강제로 티저 UI를 활성화하여 결제를 유도 (upload 함수 내 로직 재사용을 위해 별도 함수 분리 권장되지만, 여기선 간편하게 UI 조작)
+    const resultBox = document.getElementById('resultBox');
+    const v = document.getElementById('v');
+
+    // 비디오 숨기고 결과 박스 보이기
+    v.classList.add('hidden');
+    resultBox.classList.remove('hidden');
+
+    // 티저 내용 주입
+    resultBox.innerHTML = `
+        <div class="absolute inset-0 bg-black/90 z-10 flex flex-col items-center justify-center text-center p-6 backdrop-blur-md">
+            <p class="text-3xl mb-2">💎</p>
+            <h3 class="text-xl font-bold text-white mb-2">SmartCal AI Pro</h3>
+            <p class="text-gray-300 text-sm mb-6">${t[lang].teaser_desc}</p>
+            
+            <div id="paypal-button-container" class="w-full max-w-xs"></div>
+
+            <p class="text-xs text-gray-500 mt-4">${t[lang].teaser_sub}</p>
+            <button onclick="location.reload()" class="mt-4 text-gray-500 underline text-xs">Cancel</button>
+        </div>
+    `;
+
+    // PayPal 버튼 렌더링
+    setTimeout(() => {
+        paypal.Buttons({
+            createOrder: function (data, actions) {
+                return actions.order.create({
+                    purchase_units: [{ amount: { value: '9.90' } }] // $9.90 USD
+                });
+            },
+            onApprove: function (data, actions) {
+                return actions.order.capture().then(function (details) {
+                    alert('Transaction completed by ' + details.payer.name.given_name + '!');
+                    fetch(`${API_URL}/pay-success?user_id=${userId || 'guest'}`, { method: 'POST' })
+                        .then(() => {
+                            alert(lang === 'ko' ? "🎉 프리미엄이 활성화되었습니다!" : "🎉 Premium Activated!");
+                            location.reload();
+                        });
+                });
+            }
+        }).render('#paypal-button-container');
+    }, 100);
 }
 
 
